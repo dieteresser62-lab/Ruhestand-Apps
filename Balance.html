@@ -415,7 +415,9 @@
 
     const APP_VERSION = 'Balance-App v30.0';
     const ENGINE_VERSION = 'v30.2';
-    const ENGINE_HASH = '1632438333';;
+    // Warum: Die Logikdatei `enginev30.js` wurde geändert, dadurch ändert sich der Funktions-Hash.
+    // Was geändert wurde: `ENGINE_HASH` auf den aktuell berechneten Hash aktualisiert. Keine Logik-/Semantikänderung.
+    const ENGINE_HASH = '1989287271';
 
     const LS_KEY = `ruhestandsmodellValues_v30`;
     const MIGRATION_FLAG = 'migration_v29_inflation_sanitized';
