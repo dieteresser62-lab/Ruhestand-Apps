@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="de" data-density="compact">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruhestand-Balancing</title>
+<style>
+    :root {
+        --primary-text: #1a202c; --secondary-text: #4a5568; --accent-color: #3182ce;
+        --background-color: #edf2f7; --surface-color: #ffffff; --border-color: #e2e8f0;
+        --success-color: #38a169; --warning-color: #dd6b20; --danger-color: #e53e3e;
+        --content-bg-color: #f0f9ff; --content-border-color: #e0f2fe;
+        --info-text-color: #4a5568;
+    }
+    html[data-theme=dark] {
+        --primary-text: #e2e8f0; --secondary-text: #a0aec0; --accent-color: #63b3ed;
+        --background-color: #1a202c; --surface-color: #2d3748; --border-color: #4a5568;
+        --content-bg-color: #273446; --content-border-color: #314155;
+        --info-text-color: #a0aec0;
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--background-color); color: var(--primary-text);
+        margin: 0; padding: 20px; display: flex; justify-content: center;
+        align-items: flex-start; min-height: 100vh;
+    }
+    .main-layout { display: flex; flex-direction: row; gap: 30px; width: 100%; max-width: 1450px; align-items: flex-start; }
+    .panel {
+        background-color: var(--surface-color); padding: 30px; border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color);
+    }
+    .form-column { flex: 1 1 650px; max-height: calc(100vh - 60px); overflow: auto; padding-right: 10px; scroll-behavior: smooth; }
+    .results-column { flex: 1 1 600px; position: sticky; top: 20px; align-self: flex-start; }
+    .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    @media (max-width: 1250px) {
+        .main-layout { flex-direction: column; align-items: stretch; gap: 25px; }
+        .form-column { max-height: none; overflow: visible; padding-right: 0; }
+        .results-column { position: static; }
+    }
+    h1 { font-size: 1.8rem; margin: 0; color: var(--primary-text); text-align: left; }
+    h2 { font-size: 1.4rem; text-align:center; margin: 0 0 20px 0; padding-bottom: 10px; border-bottom: 2px solid var(--accent-color); color: var(--primary-text); display: flex; justify-content: center; align-items: center; gap: 10px;}
+    fieldset {
+        background-color: var(--content-bg-color); border: 1px solid var(--content-border-color);
+        border-radius: 8px; padding: 20px; margin-bottom: 25px;
+    }
+    legend {
+        font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;
+        padding: 0 10px; color: var(--primary-text);
+    }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; }
+    .form-group { display: flex; flex-direction: column; }
+    .full-width { grid-column: 1 / -1; }
+    label { margin-bottom: 6px; font-weight: 600; font-size: 0.85rem; color: var(--secondary-text); display: flex; align-items: center; gap: 5px; }
+    input, select { padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; width: 100%; box-sizing: border-box; background-color: var(--surface-color); color: var(--primary-text); transition: all 0.2s ease-in-out; }
+    input:focus, select:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.3); }
+    html[data-theme=dark] input:focus, html[data-theme=dark] select:focus { box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.3); }
+    input:disabled { background-color: #e9ecef; cursor: not-allowed; }
+    input[type=number] { -moz-appearance: textfield; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .currency { text-align: right; font-variant-numeric: tabular-nums; }
+    .btn { padding: 8px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-color); color: var(--primary-text); font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s ease-in-out; }
+    .btn:not(:disabled):hover { border-color: var(--accent-color); color: var(--accent-color); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .btn:disabled { cursor: not-allowed; opacity: .5; }
+    .btn-utility { border-style: dashed; } .btn-sm { padding: 4px 8px; font-size: .75rem; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: .75rem; }
+    .badge-warn { background: #fffaf0; color: #b7791f; border: 1px solid #f6e05e; }
+    .badge-ok { background: #f0fff4; color: #2f855a; border: 1px solid #9ae6b4; }
+    .notfall-badge { background-color: var(--danger-color); color: #fff; font-size: .7rem; font-weight: 700; padding: 3px 8px; border-radius: 12px; margin-right: 8px; }
+    .reset-button { display: block; margin-top: 20px; text-align: center; font-size: .9rem; color: var(--secondary-text); cursor: pointer; text-decoration: underline; background: none; border: none; width: 100%; padding: 5px; }
+    .details-card { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; background-color: var(--surface-color); }
+    .details-card summary { cursor: pointer; font-weight: 600; color: var(--primary-text); list-style: none; }
+    .details-card summary::-webkit-details-marker { display: none; }
+    .details-card[open] { padding-bottom: 12px; }
+    .details-card summary:before { content: '▶'; font-size: .7em; margin-right: 8px; display: inline-block; transition: transform .2s; }
+    .details-card[open] > summary:before { transform: rotate(90deg); }
+    .radio-group { display: flex; align-items: center; justify-content: space-around; padding: 5px 0;}
+    .radio-group label { margin: 0 5px 0 2px; }
+    .result-item { background-color: var(--content-bg-color); border: 1px solid var(--content-border-color); padding: 15px; margin-bottom: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1rem; transition: background-color 0.3s, border-color 0.3s; }
+    .result-item strong { color: var(--secondary-text); font-weight: 500; }
+    .result-item span { font-weight: 500; font-size: 1.1rem; color: var(--primary-text); font-variant-numeric: tabular-nums; }
+    .result-item .before-after strong { color: var(--success-color); }
+    html[data-theme=dark] .result-item .before-after strong { color: #9ae6b4; }
+    #marktstatusText { text-align: right; flex-grow: 1; }
+    #handlungsanweisung { font-size: 1.15rem; font-weight: 700; text-align: center; padding: 20px; border-radius: 8px; margin-top: 15px; border: 1px solid; position: relative; transition: background-color 0.3s, border-color 0.3s, color 0.3s; }
+    #handlungsanweisung small { display: block; margin-top: 10px; font-weight: 400; font-size: .9rem; color: var(--secondary-text); }
+    #copyAction { position: absolute; top: 8px; right: 8px; z-index: 2; }
+    .anweisung-gruen { background-color: #f0fff4; color: #2f855a; border-color: #9ae6b4; }
+    .anweisung-gelb { background-color: #fffaf0; color: #b7791f; border-color: #f6e05e; }
+    .anweisung-rot { background-color: #fff5f5; color: #c53030; border-color: #feb2b2; }
+    .anweisung-grau { background-color: #f0f9ff; color: #4a5568; border-color: #e0f2fe; }
+    html[data-theme=dark] .anweisung-gruen { background-color: #2c4238; color: #9ae6b4; border-color: #48bb78; }
+    html[data-theme=dark] .anweisung-gelb { background-color: #4a3a1f; color: #f6e05e; border-color: #b7791f; }
+    html[data-theme=dark] .anweisung-rot { background-color: #4c2b2b; color: #feb2b2; border-color: #c53030; }
+    html[data-theme=dark] .anweisung-grau { background-color: #273446; color: #a0aec0; border-color: #314155; }
+    html[data-theme=dark] .badge-warn { background: #4a3a1f; color: #f6e05e; border-color: #b7791f;}
+    html[data-theme=dark] .badge-ok { background: #2c4238; color: #9ae6b4; border-color: #48bb78; }
+    html[data-theme=dark] #handlungsanweisung small { color: var(--secondary-text); }
+    hr { border: none; border-top: 1px solid var(--border-color); margin: 15px 0; }
+    .input-error { border-color: var(--danger-color) !important; box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.3) !important; }
+    .mt-10 { margin-top: 10px; }
+    #error-container { font-weight: 700; margin-top: 15px; text-align: center; min-height: 1.2em; transition: color .3s; padding: 8px; border-radius: 6px;}
+    .error-warn { background-color: var(--danger-color); color: white; }
+    .einstand-hinweis { font-size: .8rem; color: var(--info-text-color); margin: 5px 0 10px 0; }
+    .tab-buttons { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 25px; }
+    .tab-btn { padding: 10px 18px; cursor: pointer; background: none; border: none; font-size: 1rem; font-weight: 600; color: var(--secondary-text); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; }
+    .tab-btn:hover { color: var(--primary-text); }
+    .tab-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeIn .3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .badge-row-ok    { background:#f0fff4; border:1px solid #9ae6b4; }
+    .badge-row-warn  { background:#fffaf0; border:1px solid #f6e05e; }
+    .badge-row-bad   { background:#fff5f5; border:1px solid #feb2b2; }
+    html[data-theme=dark] .badge-row-ok   { background:#2c4238; border-color:#48bb78; }
+    html[data-theme=dark] .badge-row-warn { background:#4a3a1f; border-color:#b7791f; }
+    html[data-theme=dark] .badge-row-bad  { background:#4c2b2b; border-color:#c53030; }
+    .badge-hint { margin-left:.5rem; font-size:.9em; opacity:.9 }
+    .progress-bar-container { position:relative; height:12px; background-color: var(--border-color); border-radius: 25px; overflow: hidden; }
+    #liquiditaetBalken { height:100%; width:0%; transition:width .35s ease; border-radius: 25px; }
+    .bar-ok{background:#22c55e}.bar-warn{background:#f59e0b}.bar-bad{background:#ef4444}
+    .mini-summary { background-color: var(--content-bg-color); border: 1px solid var(--content-border-color); padding: 10px 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px; font-size: 0.9rem; text-align: center; }
+    .summary-item { display: flex; flex-direction: column; }
+    .summary-item .label { font-weight: 600; color: var(--secondary-text); font-size: 0.8rem; margin-bottom: 2px; }
+    .summary-item .value { font-weight: 500; font-variant-numeric: tabular-nums; }
+    .summary-item .value strong { color: var(--success-color); }
+    html[data-theme=dark] .summary-item .value strong { color: #9ae6b4; }
+    html[data-density=compact] .panel { padding: 20px; }
+    html[data-density=compact] fieldset { padding: 15px; margin-bottom: 15px; }
+    html[data-density=compact] .form-grid { gap: 10px; }
+    html[data-density=compact] label { margin-bottom: 4px; font-size: .82rem; }
+    html[data-density=compact] input, html[data-density=compact] select { padding: 8px; }
+    html[data-density=compact] .result-item { padding: 12px; }
+    #print-footer, #engine-mismatch-footer { display: none; }
+    #engine-mismatch-footer { color: var(--danger-color); font-size: 0.8rem; text-align: center; margin-top: 10px; }
+    @media print {
+        body { padding: 0; background: #fff; color: #000; } .main-layout { flex-direction: column-reverse; gap: 0; }
+        .form-column { display: none; } .results-column { position: static; box-shadow: none; border: 1px solid #ccc; }
+        #handlungsanweisung { padding: 15px; } .btn, input[type=file], .reset-button, #copyAction, .tab-buttons, .mini-summary, #openDiagnosisBtn { display: none; }
+        .tab-panel { display: block !important; }
+        h1 small { display: none; } #print-footer { display: block; font-size: .8rem; margin-top: 20px; padding-top: 10px; border-top: 1px solid #999; color: #555; }
+        #print-footer div { margin-bottom: 4px; }
+    }
+    .strategy-badge { font-weight: 700; padding: 2px 7px; border-radius: 12px; font-size: .7rem; margin-right: 8px; background: var(--content-bg-color); color: var(--warning-color); border: 1px solid var(--warning-color); opacity: 0.9; display: inline-block; vertical-align: middle; }
+    html[data-theme=dark] .strategy-badge { color: #f6e05e; border-color: #b7791f; }
+    #snapshotList li { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; border-bottom: 1px solid var(--border-color); transition: background-color 0.2s; }
+    #snapshotList li:last-child { border-bottom: none; }
+    #snapshotList li:hover { background-color: var(--content-bg-color); }
+    .snapshot-actions button { margin-left: 8px; }
+    .snapshot-status { font-size: 0.8rem; color: var(--secondary-text); margin-top: 10px; text-align: center; }
+    #themeToggleContainer { align-self: end; }
+    /* --- Diagnosis Panel Styles --- */
+    .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 99; opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s; }
+    .drawer-overlay.is-open { opacity: 1; visibility: visible; }
+    .diagnosis-drawer {
+        position: fixed; top: 0; right: 0; width: 100%; max-width: 500px; height: 100%;
+        background-color: var(--surface-color); z-index: 100;
+        box-shadow: -5px 0 25px rgba(0,0,0,0.1); border-left: 1px solid var(--border-color);
+        transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        display: flex; flex-direction: column;
+    }
+    .diagnosis-drawer.is-open { transform: translateX(0); }
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+    .drawer-header h3 { margin: 0; font-size: 1.2rem; }
+    .drawer-header .controls { display: flex; align-items: center; gap: 8px; }
+    .drawer-content { padding: 20px; overflow-y: auto; flex-grow: 1; }
+    .drawer-content.filter-inactive .decision-inactive, .drawer-content.filter-inactive .guardrail-ok { display: none; }
+    .diag-section { margin-bottom: 25px; }
+    .diag-section h4 { font-size: .9rem; text-transform: uppercase; letter-spacing: .5px; color: var(--secondary-text); margin: 0 0 12px 0; padding-bottom: 5px; border-bottom: 1px solid var(--border-color); }
+    .diag-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .diag-chip { padding: 4px 10px; border-radius: 16px; font-size: .8rem; font-weight: 600; border: 1px solid; }
+    .diag-chip .label { color: var(--secondary-text); margin-right: 6px; }
+    .diag-chip.status-ok { background-color: #f0fff4; color: #2f855a; border-color: #9ae6b4; }
+    .diag-chip.status-warn { background-color: #fffaf0; color: #b7791f; border-color: #f6e05e; }
+    .diag-chip.status-danger { background-color: #fff5f5; color: #c53030; border-color: #feb2b2; }
+    .diag-chip.status-info { background-color: var(--content-bg-color); color: var(--primary-text); border-color: var(--content-border-color); }
+    html[data-theme=dark] .diag-chip.status-ok { background-color: #2c4238; color: #9ae6b4; border-color: #48bb78; }
+    html[data-theme=dark] .diag-chip.status-warn { background-color: #4a3a1f; color: #f6e05e; border-color: #b7791f; }
+    html[data-theme=dark] .diag-chip.status-danger { background-color: #4c2b2b; color: #feb2b2; border-color: #c53030; }
+    html[data-theme=dark] .diag-chip.status-info { background-color: #273446; color: #e2e8f0; border-color: #314155; }
+    #diag-decision-tree { list-style: none; padding-left: 15px; margin: 0; font-size: .9rem; }
+    #diag-decision-tree li { position: relative; padding: 4px 0 12px 20px; border-left: 2px solid var(--border-color); }
+    #diag-decision-tree li::before { content: '✓'; position: absolute; left: -10px; top: 3px; background-color: var(--surface-color); border-radius: 50%; width: 18px; height: 18px; text-align: center; line-height: 18px; font-size: .8em; color: var(--secondary-text); border: 2px solid var(--border-color); }
+    #diag-decision-tree li.active.severity-guardrail::before { content: '🛡️'; border-color: var(--warning-color); color: var(--warning-color); }
+    #diag-decision-tree li.active.severity-alarm::before { content: '🚨'; border-color: var(--danger-color); color: var(--danger-color); }
+    #diag-decision-tree li.active.severity-info::before { content: '⚡'; border-color: var(--accent-color); color: var(--accent-color); }
+    #diag-decision-tree li:last-child { border-left: 2px solid transparent; }
+    #diag-decision-tree .impact { font-style: italic; color: var(--secondary-text); margin-top: 4px; display: block; }
+    #diag-guardrails { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .guardrail-card { background: var(--content-bg-color); border: 1px solid var(--content-border-color); border-radius: 8px; padding: 12px; font-size: .9rem; border-left-width: 4px; }
+    .guardrail-card.status-ok { border-left-color: var(--success-color); }
+    .guardrail-card.status-warn { border-left-color: var(--warning-color); }
+    .guardrail-card.status-danger { border-left-color: var(--danger-color); }
+    .guardrail-card strong { display: block; font-size: .8rem; color: var(--secondary-text); margin-bottom: 5px; }
+    .guardrail-card .value { font-weight: 600; font-size: 1.1rem; }
+    .guardrail-card .threshold { font-size: .8rem; color: var(--secondary-text); margin-top: 2px; }
+    #diag-key-params { font-size: .85rem; color: var(--secondary-text); line-height: 1.6; }
+    #diag-key-params code { background: var(--content-bg-color); padding: 2px 5px; border-radius: 4px; font-size: .9em; }
+</style>
+</head>
+<body>
+    <div class="main-layout">
+        <div class="form-column panel">
+            <div class="app-header">
+                <h1>Ruhestand-Balancing</h1>
+                <div class="app-controls">
+                    <button id="jahresabschlussBtn" type="button" class="btn" aria-label="Jahresabschluss erstellen (Alt+J)">⭐ Jahresabschluss</button>
+                    <button id="exportBtn" type="button" class="btn" aria-label="Export (Alt+E)">📤 Export</button>
+                    <button id="importBtn" type="button" class="btn" aria-label="Import (Alt+I)">📥 Import</button>
+                    <input id="importFile" type="file" accept="application/json,.json" style="display:none">
+                </div>
+            </div>
+            
+            <div class="tab-buttons">
+                <button class="tab-btn active" data-tab="update">Jahres-Update</button>
+                <button class="tab-btn" data-tab="settings">Grundeinstellungen & Strategie</button>
+            </div>
+
+            <div class="tab-content">
+                <!-- Tab 1: Jahres-Update -->
+                <div id="tab-update" class="tab-panel active">
+                    <fieldset><legend>Basiswerte</legend>
+                        <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div class="form-group"><label for="aktuellesAlter">Aktuelles Alter</label><input id="aktuellesAlter" type="number" value="65" min="50"></div>
+                            <div class="form-group"><label for="inflation">Inflation VJ (%)</label><input id="inflation" type="number" value="1.7" step="0.1"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset><legend>Vermögen</legend>
+                        <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div class="form-group"><label for="tagesgeld">Tagesgeld (€)</label><input id="tagesgeld" class="currency" type="text" inputmode="numeric" value="60000"></div>
+                            <div class="form-group"><label for="geldmarktEtf">Geldmarkt-ETF (€)</label><input id="geldmarktEtf" class="currency" type="text" inputmode="numeric" value="360000"></div>
+                            <div class="form-group"><label for="depotwertAlt">Depotwert Alt (€)</label><input id="depotwertAlt" class="currency" type="text" inputmode="numeric" placeholder="z. B. 1.200.000"></div>
+                            <div class="form-group"><label for="depotwertNeu">Depotwert Neu (€)</label><input id="depotwertNeu" class="currency" type="text" inputmode="numeric" placeholder="z. B. 750.000"></div>
+                            <div class="form-group" id="goldWertGroup"><label for="goldWert">Gold-Bestand (€)</label><input id="goldWert" class="currency" type="text" inputmode="numeric" value="0"></div>
+                        </div>
+                        <div class="form-group full-width mt-10" id="depotMetaRow" aria-live="polite">
+                            <small style="color: var(--info-text-color); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                              Stand: <span id="depotLastUpdated">—</span> · Status: <span id="depotConfirmBadge" class="badge badge-warn">nicht bestätigt</span>
+                              <button id="btnBedarfAnpassen" type="button" class="btn btn-sm btn-utility ml-auto" title="Erhöht den Floor- und Flex-Bedarf (im anderen Tab) um die oben eingegebene Inflationsrate.">Bedarf anpassen</button>
+                              <button id="depotConfirmBtn" type="button" class="btn btn-sm">Bestätigen</button>
+                            </small>
+                        </div>
+                    </fieldset>
+                    <fieldset><legend style="display: flex; justify-content: space-between; align-items: center; width: 100%;">Marktdaten
+                        <span style="display: flex; gap: 6px;">
+                            <button id="btnCsvImport" type="button" class="btn btn-utility btn-sm" title="Marktdaten aus CSV-Datei importieren">📄 CSV</button>
+                            <input type="file" id="csvFileInput" accept=".csv" style="display:none">
+                            <button id="btnNachruecken" type="button" class="btn btn-utility btn-sm" title="Marktdaten um ein Jahr verschieben (Alt+N)">🗓️ Nachr.</button>
+                            <button id="btnUndoNachruecken" type="button" class="btn btn-utility btn-sm" title="Nachrücken rückgängig machen" style="display:none;">↩️</button>
+                        </span>
+                    </legend>
+                        <div class="form-grid" style="grid-template-columns: repeat(3, 1fr);">
+                            <div class="form-group"><label for="endeVJ">Ende VJ</label><input type="number" id="endeVJ" value="2318" min="0" step="0.01"></div>
+                            <div class="form-group"><label for="endeVJ_1">Ende VJ-1</label><input type="number" id="endeVJ_1" value="1960" min="0" step="0.01"></div>
+                            <div class="form-group"><label for="ath">Allzeithoch</label><input type="number" id="ath" value="2318" min="0" step="0.01"></div>
+                            <div class="form-group"><label for="endeVJ_2">Ende VJ-2</label><input type="number" id="endeVJ_2" value="1850" min="0" step="0.01"></div>
+                            <div class="form-group"><label for="endeVJ_3">Ende VJ-3</label><input type="number" id="endeVJ_3" value="1706" min="0" step="0.01"></div>
+                            <div class="form-group"><label for="jahreSeitAth">Jahre seit ATH</label><input type="number" id="jahreSeitAth" value="0" step="0.01" min="0"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset><legend>Externe Einkünfte</legend>
+                      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="form-group">
+                          <label for="renteAktiv">Rente aktiv</label>
+                          <select id="renteAktiv">
+                            <option value="nein">Nein</option>
+                            <option value="ja">Ja</option>
+                          </select>
+                        </div>
+                        <div class="form-group" id="renteMonatlichGroup">
+                          <label for="renteMonatlich">Gesetzl. Rente (€/Monat)</label>
+                          <input id="renteMonatlich" class="currency" type="text" inputmode="numeric" value="0" disabled>
+                        </div>
+                      </div>
+                    </fieldset>
+                </div>
+
+                <!-- Tab 2: Grundeinstellungen & Strategie -->
+                <div id="tab-settings" class="tab-panel">
+                    <fieldset><legend>Bedarfsplanung</legend>
+						<div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+						    <div class="form-group"><label for="floorBedarf" title="Essenzielle Ausgaben pro Jahr">Floor-Bedarf p.a. (€)</label><input id="floorBedarf" class="currency" type="text" inputmode="numeric" value="35000"></div>
+						    <div class="form-group"><label for="flexBedarf" title="Wünschenswerte, aber kürzbare Ausgaben pro Jahr">Flex-Bedarf p.a. (€)</label><input id="flexBedarf" class="currency" type="text" inputmode="numeric" value="25000"></div>
+						</div>
+					</fieldset>
+                    <fieldset><legend>Risikoprofil & Steuern</legend><div class="form-grid">
+                        <div class="form-group"><label for="risikoprofil">Risikoprofil</label>
+                            <input id="risikoprofil" type="text" value="Sicherheits-Dynamisch" disabled>
+                        </div>
+                        <div class="form-group"><label for="kirchensteuerSatz">Kirchensteuer</label><select id="kirchensteuerSatz"><option value="0">0 %</option><option value="0.08" selected>8 %</option><option value="0.09">9 %</option></select></div>
+                        <div class="form-group"><label for="sparerPauschbetrag">Sparer-PB (€)</label><input id="sparerPauschbetrag" class="currency" type="text" inputmode="numeric" value="1000"></div>
+                        <div class="form-group" id="themeToggleContainer"><label for="themeToggle">Design</label><button id="themeToggle" type="button" class="btn" aria-label="Design wechseln (Alt+D)"></button></div>
+                        <div class="form-group full-width"><label style="font-weight:400"><input type="checkbox" id="round5" style="width:auto"> Kürzung in 5-%-Schritten runden</label></div>
+                    </div></fieldset>
+                    <fieldset><legend>Gold-Strategie</legend>
+                        <div class="form-group full-width">
+                            <label style="flex-direction: row; align-items: center; justify-content: center; padding: 5px 0;">
+                                <input type="checkbox" id="goldAktiv" class="goldAktiv" style="width: auto; margin-right: 8px;">Gold-Allokation aktiv
+                            </label>
+                        </div>
+                        <div id="goldPanel" style="display: none;">
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 15px 20px; align-items: end;">
+                                <div class="form-group"><label for="goldZielProzent">Ziel-Allokation (% v. Depot)</label><input type="number" id="goldZielProzent" value="5" step="0.5"></div>
+                                <div class="form-group"><label for="goldFloorProzent">Gold-Floor (% v. Gesamt)</label><input type="number" id="goldFloorProzent" value="3" step="0.5"></div>
+                                <div class="form-group"><label for="rebalancingBand">Rebalancing-Band (±%)</label><input type="number" id="rebalancingBand" value="35" step="5"></div>
+                                <div class="form-group full-width" style="grid-column: 1 / -1; justify-content:center; margin-top: 5px;"><label style="display:flex; align-items:center; flex-direction: row;"><input type="checkbox" id="goldSteuerfrei" style="width:auto; margin-right:8px;"> Gold-Verkäufe steuerfrei</label></div>
+                            </div>
+                        </div>
+                    </fieldset>
+                    <details id="einstandDetails" class="details-card" aria-label="Einstandswerte"><summary aria-controls="einstandContent">Einstandswerte & Teilfreistellung</summary>
+                        <div class="einstand-hinweis">Selten ändern – wird automatisch gespeichert.</div>
+                        <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 20px; align-items: start;">
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="form-group"><label for="costBasisAlt">Einstand Alt (€)</label><input id="costBasisAlt" class="currency" type="text" inputmode="numeric" value="666667"></div>
+                                <div class="form-group"><label for="tqfAlt">TQF Alt</label><input id="tqfAlt" type="number" step="0.01" min="0" max="1" value="0.30"></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="form-group"><label for="costBasisNeu">Einstand Neu (€)</label><input id="costBasisNeu" class="currency" type="text" inputmode="numeric" value="750000"></div>
+                                <div class="form-group"><label for="tqfNeu">TQF Neu</label><input id="tqfNeu" type="number" step="0.01" min="0" max="1" value="0.30"></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="form-group"><label for="goldCost">Gold-Einstand (€)</label><input id="goldCost" class="currency" type="text" inputmode="numeric" value="0"></div>
+                            </div>
+                        </div>
+                    </details>
+                    
+                    <details id="snapshot-management" class="details-card" style="margin-top: 25px;">
+                        <summary>Jahresabschluss-Snapshots</summary>
+                        <div style="padding: 10px 0 5px 0;">
+                            <button type="button" class="btn btn-sm" id="connectFolderBtn" style="width: 100%;">Lokalen Snapshot-Ordner verbinden</button>
+                            <div id="snapshotStatus" class="snapshot-status">Speicherort: Browser (localStorage)</div>
+                        </div>
+                        <ul id="snapshotList" style="list-style: none; padding: 10px 0 0 0; margin: 0; font-size: 0.9rem;">
+                        </ul>
+                    </details>
+					<button type="button" class="reset-button" id="resetBtn">Gespeicherte Werte zurücksetzen</button>
+                </div>
+            </div>
+        </div>
+        <div class="results-column panel" role="region" aria-live="polite">
+            <div id="results" role="status">
+                <h2>
+                    Ergebnisse & Handlungsschritte
+                    <button id="openDiagnosisBtn" type="button" class="btn btn-sm btn-utility" title="Diagnosepanel öffnen">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path><path d="M12 18a6 6 0 0 0 0-12V2a10 10 0 0 0-9.9 12"></path><path d="M12 12h.01"></path></svg>
+                        Diagnose
+                    </button>
+                </h2>
+                <div class="mini-summary" id="miniSummary"></div>
+                <div id="error-container" aria-live="polite"></div>
+                <div class="result-item"><strong>Gesamt-Depotwert:</strong><span id="displayDepotwert"></span></div>
+                <div class="result-item"><strong>Gesamtjahresbedarf:</strong><span id="neuerBedarf"></span></div>
+                <div class="result-item" id="minGoldRow"><strong>Gold-Mindestbestand:</strong><span id="minGoldDisplay"></span></div>
+                <hr>
+                <div class="result-item"><strong>Ziel-Liquidität:</strong><span id="zielLiquiditaet"></span></div>
+                <div class="progress-bar-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div id="liquiditaetBalken" class="progress-bar"></div></div>
+                <hr>
+                <div class="result-item" id="marktstatusRow"><strong style="padding-right:10px">Marktsituation:</strong><span id="marktstatusText"></span></div>
+                <div class="result-item"><strong>Monatliche Entnahme:</strong><span id="monatlicheEntnahme"></span></div>
+                <details class="details-card" id="entnahme-breakdown" style="margin-top: 10px; display: none;"><summary>Details zur Entnahme</summary>
+                    <div style="margin-top: 10px; font-size: 0.9rem; line-height: 1.5;" id="entnahmeDetailsContent"></div>
+                </details>
+
+                <div id="handlungsanweisung"><button id="copyAction" type="button" class="btn btn-sm btn-utility" title="Handlung kopieren">📋</button></div>
+                
+                <div id="print-footer"></div>
+                <div id="engine-mismatch-footer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnosis Panel Drawer -->
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+    <div id="diagnosisDrawer" class="diagnosis-drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+        <div class="drawer-header">
+            <h3 id="drawerTitle">KI-Diagnose</h3>
+            <div class="controls">
+                <label style="font-weight:400; font-size: .8rem; margin:0;"><input type="checkbox" id="diagFilterToggle" style="width:auto; margin-right: 5px;">Nur aktive Regeln</label>
+                <button id="copyDiagnosisBtn" type="button" class="btn btn-sm btn-utility" title="Diagnose kopieren">📋</button>
+                <button id="closeDiagnosisBtn" type="button" class="btn btn-sm" title="Schließen">&times;</button>
+            </div>
+        </div>
+        <div id="diagContent" class="drawer-content">
+            <div class="diag-section">
+                <h4>Status-Übersicht</h4>
+                <div id="diag-chips" class="diag-chips"></div>
+            </div>
+            <div class="diag-section">
+                <h4>Entscheidungsbaum (Warum?)</h4>
+                <ul id="diag-decision-tree"></ul>
+            </div>
+            <div class="diag-section">
+                <h4>Guardrails</h4>
+                <div id="diag-guardrails" class="diag-guardrails"></div>
+            </div>
+            <div class="diag-section">
+                <h4>Schlüsselparameter (Intern)</h4>
+                <div id="diag-key-params"></div>
+            </div>
+        </div>
+    </div>
+
+<script src="enginev30.js" defer></script>
+
+<script defer>
+(function() {
+    'use strict';
+
+    window.addEventListener('error', (e) => {
+      const box = document.getElementById('error-container');
+      if (box) {
+          box.textContent = `JS-Fehler: ${e.message}`;
+          box.classList.add('error-warn');
+      }
+    });
+
+    const APP_VERSION = 'Balance-App v30.0';
+    const ENGINE_VERSION = 'v30.2';
+    const ENGINE_HASH = '1632438333';;
+
+    const LS_KEY = `ruhestandsmodellValues_v30`;
+    const MIGRATION_FLAG = 'migration_v29_inflation_sanitized';
+    const SNAPSHOT_PREFIX = 'ruhestandsmodell_snapshot_';
+    
+    const dom = {
+        outputs: {
+            miniSummary: document.getElementById('miniSummary'),
+            depotwert: document.getElementById('displayDepotwert'), neuerBedarf: document.getElementById('neuerBedarf'),
+            zielLiquiditaet: document.getElementById('zielLiquiditaet'), 
+            liquiditaetBalken: document.getElementById('liquiditaetBalken'), balkenContainer: document.querySelector('.progress-bar-container'),
+            marktstatusText: document.getElementById('marktstatusText'),
+            monatlicheEntnahme: document.getElementById('monatlicheEntnahme'),
+            handlungsanweisung: document.getElementById('handlungsanweisung'),
+            minGoldDisplay: document.getElementById('minGoldDisplay'),
+            entnahmeDetailsContent: document.getElementById('entnahmeDetailsContent'),
+            entnahmeBreakdown: document.getElementById('entnahme-breakdown'),
+            snapshotList: document.getElementById('snapshotList')
+        },
+        depotLastUpdated: document.getElementById('depotLastUpdated'), depotConfirmBadge: document.getElementById('depotConfirmBadge'), depotConfirmBtn: document.getElementById('depotConfirmBtn'),
+        btnBedarfAnpassen: document.getElementById('btnBedarfAnpassen'),
+        errorContainer: document.getElementById('error-container'), themeToggle: document.getElementById('themeToggle'),
+        exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile'),
+        btnNachruecken: document.getElementById('btnNachruecken'), btnUndoNachruecken: document.getElementById('btnUndoNachruecken'),
+        btnCsvImport: document.getElementById('btnCsvImport'),
+        csvFileInput: document.getElementById('csvFileInput'),
+        copyAction: document.getElementById('copyAction'), resetBtn: document.getElementById('resetBtn'),
+        goldPanel: document.getElementById('goldPanel'),
+        jahresabschlussBtn: document.getElementById('jahresabschlussBtn'),
+        connectFolderBtn: document.getElementById('connectFolderBtn'),
+        snapshotStatus: document.getElementById('snapshotStatus'),
+        tabButtons: document.querySelector('.tab-buttons'),
+        tabPanels: document.querySelectorAll('.tab-panel'),
+        diagnosis: {
+            drawer: document.getElementById('diagnosisDrawer'),
+            overlay: document.getElementById('drawerOverlay'),
+            openBtn: document.getElementById('openDiagnosisBtn'),
+            closeBtn: document.getElementById('closeDiagnosisBtn'),
+            copyBtn: document.getElementById('copyDiagnosisBtn'),
+            filterToggle: document.getElementById('diagFilterToggle'),
+            content: document.getElementById('diagContent'),
+            chips: document.getElementById('diag-chips'),
+            decisionTree: document.getElementById('diag-decision-tree'),
+            guardrails: document.getElementById('diag-guardrails'),
+            keyParams: document.getElementById('diag-key-params')
+        }
+    };
+    
+    let state = { debounceTimer: null, inputs: {}, snapshotHandle: null, diagnosisData: null, lastUpdateTimestamp: null };
+    const EUR_FORMATTER = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+    const formatCurrency = val => (typeof val === 'number' && isFinite(val)) ? EUR_FORMATTER.format(val) : 'N/A';
+	window.formatCurrency = formatCurrency;
+    const formatCurrencyInput = num => new Intl.NumberFormat('de-DE').format(Math.round(num));
+    function parseCurrencyInput(str) { if (!str) return 0; const n = parseFloat(String(str).replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : 0; }
+    function getFromLS() { try { const d = localStorage.getItem(LS_KEY); return d ? JSON.parse(d) : {}; } catch(e) { return {}; } }
+    function saveToLS(data) { localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+    function toast(msg, isSuccess = true) { 
+        dom.errorContainer.classList.remove('error-warn');
+        dom.errorContainer.style.color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)'; 
+        dom.errorContainer.textContent = msg; 
+        setTimeout(() => { dom.errorContainer.textContent = ''; }, 3500); 
+    }
+
+    const idbHelper = {
+        db: null,
+        open() {
+            return new Promise((resolve, reject) => {
+                if (this.db) return resolve();
+                const request = indexedDB.open('snapshotDB', 1);
+                request.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+                request.onsuccess = e => { this.db = e.target.result; resolve(); };
+                request.onerror = e => reject(e.target.error);
+            });
+        },
+        async get(key) { await this.open(); return new Promise((res, rej) => { const req = this.db.transaction('handles').objectStore('handles').get(key); req.onsuccess = e => res(e.target.result); req.onerror = e => rej(e.target.error); }); },
+        async set(key, val) { await this.open(); return new Promise((res, rej) => { const req = this.db.transaction('handles', 'readwrite').objectStore('handles').put(val, key); req.onsuccess = () => res(); req.onerror = e => rej(e.target.error); }); }
+    };
+
+    function runMigrations() {
+        if (localStorage.getItem(MIGRATION_FLAG)) return;
+        
+        let data = getFromLS();
+        if (data?.values?.lastState) {
+            const s = data.values.lastState;
+            
+            if (!isFinite(s.cumulativeInflationFactor) || s.cumulativeInflationFactor > 3) {
+                s.cumulativeInflationFactor = 1;
+                console.log("Migration: Reset cumulativeInflationFactor to 1.");
+            }
+            if (!Number.isFinite(s.lastInflationAppliedAtAge)) {
+                s.lastInflationAppliedAtAge = 0;
+                console.log("Migration: Initialized lastInflationAppliedAtAge.");
+            }
+            saveToLS(data);
+        }
+        localStorage.setItem(MIGRATION_FLAG, '1');
+    }
+    runMigrations();
+
+
+    async function connectFolder() {
+        try {
+            const handle = await window.showDirectoryPicker();
+            if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+                throw new Error('Zugriff auf den Ordner wurde nicht gewährt.');
+            }
+            await idbHelper.set('snapshotDirHandle', handle);
+            state.snapshotHandle = handle;
+            dom.snapshotStatus.textContent = `Verbunden mit: ${handle.name}`;
+            toast('Snapshot-Ordner erfolgreich verbunden.');
+            renderSnapshots();
+        } catch (err) {
+            if (err.name !== 'AbortError') toast('Ordner konnte nicht verbunden werden.', false);
+        }
+    }
+
+    async function renderSnapshots() {
+        const list = dom.outputs.snapshotList;
+        if (!list) return;
+        list.innerHTML = '<li>Lade...</li>';
+        let snapshots = [];
+
+        try {
+            if (state.snapshotHandle) {
+                for await (const entry of state.snapshotHandle.values()) {
+                    if (entry.kind === 'file' && entry.name.endsWith('.json')) {
+                        snapshots.push({ key: entry.name, name: entry.name.replace('.json', '') });
+                    }
+                }
+            } else {
+                snapshots = Object.keys(localStorage)
+                    .filter(key => key.startsWith(SNAPSHOT_PREFIX))
+                    .map(key => ({ key, name: new Date(key.replace(SNAPSHOT_PREFIX, '')).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) }));
+            }
+        } catch (err) {
+            list.innerHTML = `<li>Fehler beim Laden der Snapshots.</li>`;
+            return;
+        }
+
+        list.innerHTML = '';
+        if (snapshots.length === 0) { list.innerHTML = '<li>Keine Snapshots vorhanden.</li>'; return; }
+        
+        snapshots.sort((a,b) => b.name.localeCompare(a.name)).forEach(({ key, name }) => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span>${name}</span>
+                <span class="snapshot-actions">
+                    <button type="button" class="btn btn-sm btn-utility restore-snapshot" data-key="${key}">Wiederherstellen</button>
+                    <button type="button" class="btn btn-sm delete-snapshot" data-key="${key}" style="color: var(--danger-color);">Löschen</button>
+                </span>`;
+            list.appendChild(li);
+        });
+    }
+
+    async function handleSnapshotActions(e) {
+        const restoreBtn = e.target.closest('.restore-snapshot');
+        const deleteBtn = e.target.closest('.delete-snapshot');
+
+        if (restoreBtn) {
+            const key = restoreBtn.dataset.key;
+            if (confirm(`Möchten Sie den Snapshot "${key.replace('.json','')}" wirklich wiederherstellen? Alle aktuellen Eingaben gehen verloren.`)) {
+                try {
+                    let snapshotData;
+                    if (state.snapshotHandle) {
+                        const fileHandle = await state.snapshotHandle.getFileHandle(key);
+                        const file = await fileHandle.getFile();
+                        snapshotData = JSON.parse(await file.text());
+                    } else {
+                        snapshotData = JSON.parse(localStorage.getItem(key));
+                    }
+                    saveToLS(snapshotData);
+                    location.reload();
+                } catch (err) { toast('Wiederherstellen fehlgeschlagen.', false); }
+            }
+        }
+        if (deleteBtn) {
+            const key = deleteBtn.dataset.key;
+            if (confirm(`Möchten Sie diesen Snapshot wirklich endgültig löschen?`)) {
+                try {
+                    if (state.snapshotHandle) {
+                        await state.snapshotHandle.removeEntry(key);
+                    } else {
+                        localStorage.removeItem(key);
+                    }
+                    renderSnapshots(); toast('Snapshot gelöscht.');
+                } catch (err) { toast('Löschen fehlgeschlagen.', false); }
+            }
+        }
+    }
+
+    function readInput() {
+        const num = (id) => parseCurrencyInput(document.getElementById(id).value.trim());
+        const val = (id) => document.getElementById(id).value.trim();
+        const checked = (id) => document.getElementById(id).checked;
+        return {
+            floorBedarf: num('floorBedarf'), flexBedarf: num('flexBedarf'), inflation: parseFloat(val('inflation')),
+            tagesgeld: num('tagesgeld'), geldmarktEtf: num('geldmarktEtf'),
+            depotwertAlt: num('depotwertAlt'), depotwertNeu: num('depotwertNeu'), goldWert: num('goldWert'),
+            endeVJ: parseFloat(val('endeVJ')), endeVJ_1: parseFloat(val('endeVJ_1')), endeVJ_2: parseFloat(val('endeVJ_2')), endeVJ_3: parseFloat(val('endeVJ_3')),
+            ath: parseFloat(val('ath')), jahreSeitAth: parseFloat(val('jahreSeitAth')),
+            renteAktiv: val('renteAktiv') === 'ja', renteMonatlich: num('renteMonatlich'),
+            risikoprofil: 'sicherheits-dynamisch', round5: checked('round5'),
+            goldAktiv: checked('goldAktiv'), goldZielProzent: parseFloat(val('goldZielProzent')),
+            goldFloorProzent: parseFloat(val('goldFloorProzent')), goldSteuerfrei: checked('goldSteuerfrei'),
+            rebalancingBand: parseFloat(val('rebalancingBand')),
+            costBasisAlt: num('costBasisAlt'), costBasisNeu: num('costBasisNeu'), tqfAlt: parseFloat(val('tqfAlt')),
+            tqfNeu: parseFloat(val('tqfNeu')), goldCost: num('goldCost'),
+            kirchensteuerSatz: parseFloat(val('kirchensteuerSatz')), sparerPauschbetrag: num('sparerPauschbetrag')
+        };
+    }
+    
+    function updateDepotMetaUI() {
+        const d = getFromLS(); const v = d.values || {};
+        const tsUpd = v.depotLastUpdate ? new Date(v.depotLastUpdate) : null;
+        const tsConf = v.depotConfirmedAt ? new Date(v.depotConfirmedAt) : null;
+        dom.depotLastUpdated.textContent = tsUpd ? tsUpd.toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '—';
+        if (tsConf) {
+            dom.depotConfirmBadge.textContent = 'bestätigt';
+            dom.depotConfirmBadge.className = 'badge badge-ok';
+        } else {
+            dom.depotConfirmBadge.textContent = 'nicht bestätigt';
+            dom.depotConfirmBadge.className = 'badge badge-warn';
+        }
+    }
+    
+function calculateModel(inputsCtx) {
+        const profile = Ruhestandsmodell_v30.CONFIG.PROFIL_MAP[inputsCtx.risikoprofil];
+        const results = {};
+        const lsData = getFromLS();
+        let lastState = lsData.values?.lastState;
+
+        results.aktuelleLiquiditaet = inputsCtx.tagesgeld + inputsCtx.geldmarktEtf;
+        results.depotwertGesamt = inputsCtx.depotwertAlt + inputsCtx.depotwertNeu + (inputsCtx.goldAktiv ? inputsCtx.goldWert : 0);
+        results.gesamtwert = results.depotwertGesamt + results.aktuelleLiquiditaet;
+
+        const marketData = {
+            endeVJ: inputsCtx.endeVJ, endeVJ_1: inputsCtx.endeVJ_1, endeVJ_2: inputsCtx.endeVJ_2,
+            endeVJ_3: inputsCtx.endeVJ_3, ath: inputsCtx.ath, jahreSeitAth: inputsCtx.jahreSeitAth, inflation: inputsCtx.inflation
+        };
+        results.market = Ruhestandsmodell_v30.analyzeMarket(marketData);
+
+        const goldFloorAbs = (inputsCtx.goldFloorProzent / 100) * results.gesamtwert;
+        results.minGold = inputsCtx.goldAktiv ? goldFloorAbs : 0;
+
+        const pensionAnnual = inputsCtx.renteAktiv ? (inputsCtx.renteMonatlich * 12) : 0;
+        results.grossFloor = inputsCtx.floorBedarf;
+        results.inflatedFloor = Math.max(0, inputsCtx.floorBedarf - pensionAnnual);
+        results.inflatedFlex = inputsCtx.flexBedarf;
+        results.neuerBedarf = results.inflatedFloor + results.inflatedFlex;
+        const annualNeed = results.inflatedFloor + results.inflatedFlex;
+        results.reichweite = results.inflatedFloor > 0 ? (results.aktuelleLiquiditaet / results.inflatedFloor) : Infinity;
+        results.zielLiquiditaet = Ruhestandsmodell_v30.calculateTargetLiquidity(profile, results.market, annualNeed, results.inflatedFloor, results.inflatedFlex);
+        results.liquiditaetProzent = results.zielLiquiditaet > 0 ? (results.aktuelleLiquiditaet / results.zielLiquiditaet) * 100 : 100;
+        
+        const runwayMonths = isFinite(results.reichweite) ? results.reichweite * 12 : 9999;
+        
+        const spendingInput = {
+            market: results.market, lastState: lastState, inflatedFloor: results.inflatedFloor, inflatedFlex: results.inflatedFlex,
+            round5: inputsCtx.round5, runwayMonths: runwayMonths, liquidNow: results.aktuelleLiquiditaet, profile: profile,
+            depotValue: results.depotwertGesamt, totalWealth: results.gesamtwert, 
+            inputsCtx: { ...inputsCtx, marketData, pensionAnnual }
+        };
+        
+        const { spendingResult, diagnosis: rawDiagnosis } = Ruhestandsmodell_v30.determineSpending(spendingInput);
+
+        results.spending = spendingResult;
+        results.newState = spendingResult.newState;
+        results.diagnosis = formatDiagnosisPayload(rawDiagnosis, results);
+        
+        results.anmerkung = `(Flex um ${results.spending.kuerzungProzent.toFixed(0)}% wg. ${results.spending.kuerzungQuelle} gekürzt)`;
+        
+        const jahresentnahme = results.spending.monatlicheEntnahme * 12;
+        results.runwayEntnahme = jahresentnahme > 0 ? (results.aktuelleLiquiditaet / jahresentnahme) : Infinity;
+
+        const actionResult = Ruhestandsmodell_v30.determineAction(results, inputsCtx);
+        Object.assign(results, actionResult);
+
+		// --- Guard-Rail: Prüfen, ob die Engine konsistente Daten liefert ---
+        const liqDelta = (results.liqNachTransaktion?.total ?? 0) - (results.aktuelleLiquiditaet ?? 0);
+        if (liqDelta > 500 && !results.saleResult) {
+          showError("Engine gab Liquiditätszufluss ohne Verkaufsdetails zurück. Bitte Diagnose prüfen.");
+        }       
+		
+        // --- NACH determineAction: "Nachher"-Kennzahlen lokal ableiten ---
+        (function derivePostActionKPIs() {
+          // Jahres-Entnahme aus bereits berechnetem Spending
+          const jahresentnahme = results.spending?.monatlicheEntnahme ? (results.spending.monatlicheEntnahme * 12) : 0;
+
+          // 1) Liquiditäts-Deckung nach Transaktion (in %)
+          const liqNach = results.liqNachTransaktion?.total ?? results.aktuelleLiquiditaet ?? 0;
+          const zielLiq = results.zielLiquiditaet ?? 0;
+          results.liquiditaetProzentNachher = zielLiq > 0 ? (liqNach / zielLiq) * 100 : 100;
+
+          // 2) Reichweite (Floor) nach Transaktion in MONATEN (UI zeigt später in Jahren, daher /12 beim Rendern)
+          const floor = results.inflatedFloor ?? 0;
+          results.reichweiteNachher = floor > 0 ? (liqNach / floor) * 12 : Infinity;
+
+          // 3) Runway (Entnahme) nach Transaktion in MONATEN (UI teilt beim Rendern ebenfalls durch 12)
+          results.runwayEntnahmeNachher = jahresentnahme > 0 ? (liqNach / jahresentnahme) * 12 : Infinity;
+        })();
+        
+        const zielTagesgeld = results.spending.monatlicheEntnahme * 12;
+        const tagesgeldNachTransaktion = results.liqNachTransaktion.tagesgeld;
+        const geldmarktNachTransaktion = results.liqNachTransaktion.geldmarkt;
+        const umschichtungsbetrag = tagesgeldNachTransaktion - zielTagesgeld;
+        const UMSCHICHTUNGS_SCHWELLE = 2500;
+        let interneHandlungTgGm = "";
+
+        if (umschichtungsbetrag > UMSCHICHTUNGS_SCHWELLE) {
+            interneHandlungTgGm = `Tagesgeld → Geldmarkt-ETF: <strong>${formatCurrency(umschichtungsbetrag)}</strong>`;
+        } else if (umschichtungsbetrag < -UMSCHICHTUNGS_SCHWELLE) {
+            const benoetigterBetrag = Math.abs(umschichtungsbetrag);
+            if (geldmarktNachTransaktion >= benoetigterBetrag) {
+                 interneHandlungTgGm = `Geldmarkt-ETF → Tagesgeld: <strong>${formatCurrency(benoetigterBetrag)}</strong>`;
+            }
+        }
+
+        const alleInternenHandlungen = [results.interneHandlungGoldKauf, interneHandlungTgGm].filter(Boolean).join('<br>');
+        if (alleInternenHandlungen) {
+            if (results.handlungstext && !results.handlungstext.includes('Kein Handlungsbedarf') && results.handlungstext.length > 0) {
+                results.handlungstext += `<hr style="margin: 15px -10px; border-color: rgba(127,127,127,0.2);">`;
+            } else {
+                results.handlungstext = '';
+            }
+            results.handlungstext += `<div style="font-size: 1rem; text-align: center; line-height: 1.5; font-weight: 500;">${alleInternenHandlungen}</div>`;
+        }
+
+        if (results.goldNachTransaktion < results.minGold - 1) { 
+            showError(`KRITISCHE WARNUNG: Maßnahme unterschreitet Gold-Mindestbestand (${formatCurrency(results.goldNachTransaktion)} vs. ${formatCurrency(results.minGold)})!`);
+        }
+        if (isFinite(results.liquiditaetProzentNachher) && results.liquiditaetProzentNachher < 95 && (actionResult.liquiditaetsBedarf || 0) > 0) {
+          showError(`HINWEIS: Liquiditätsziel nach Transaktion nicht voll erreicht (${results.liquiditaetProzentNachher.toFixed(0)}%).`, false);
+        }
+        
+        return results;
+    }
+    
+function render(results) {
+        if (!dom.outputs.depotwert) return;
+        const { outputs } = dom;
+
+        // Safe helpers für Anzeige
+        const fmtPct0 = (v) => (isFinite(v) ? v.toFixed(0) + '%' : '—');
+        const fmtYears1 = (yrs) => (isFinite(yrs) ? yrs.toFixed(1) + ' J' : '>20 J');
+        const fmtMonthsToYears1 = (m) => (isFinite(m) ? (m / 12).toFixed(1) + ' J' : '>20 J');
+
+        outputs.miniSummary.innerHTML = `
+          <div class="summary-item">
+            <span class="label">Liquid.-Deckung</span>
+            <span class="value">${fmtPct0(results.liquiditaetProzent)} → <strong>${fmtPct0(results.liquiditaetProzentNachher)}</strong></span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Reichweite (Floor)</span>
+            <span class="value">${fmtYears1(results.reichweite)} → <strong>${fmtMonthsToYears1(results.reichweiteNachher)}</strong></span>
+          </div>
+          <div class="summary-item">
+            <span class="label">Runway (Entnahme)</span>
+            <span class="value">${fmtYears1(results.runwayEntnahme)} → <strong>${fmtMonthsToYears1(results.runwayEntnahmeNachher)}</strong></span>
+          </div>
+        `;
+
+        outputs.depotwert.textContent = formatCurrency(results.depotwertGesamt);
+        outputs.neuerBedarf.textContent = formatCurrency(results.neuerBedarf);
+        outputs.minGoldDisplay.textContent = formatCurrency(results.minGold);
+        outputs.zielLiquiditaet.textContent = formatCurrency(results.zielLiquiditaet);
+        
+        const jahresentnahme = results.spending.monatlicheEntnahme * 12;
+        outputs.monatlicheEntnahme.innerHTML = `
+            ${formatCurrency(results.spending.monatlicheEntnahme)}
+            <small style="display:block; font-size:0.85em; opacity:0.8; margin-top: 4px;">(${formatCurrency(jahresentnahme)} / Jahr)</small>
+            <small style="display:block;opacity:.8">${results.anmerkung.trim()}</small>
+        `;
+
+        outputs.marktstatusText.innerHTML = `${results.market.szenarioText} <span style="cursor:help; opacity:0.7;" title="${results.market.reasons.join(', ')}">ⓘ</span>`;
+        
+        const details = results.spending.details;
+        if (details) {
+            outputs.entnahmeDetailsContent.innerHTML = `
+             • Effektive Flex-Rate: ${details.flexRate.toFixed(1)}%<br>
+             • Entnahmequote (v. Depot): ${(details.entnahmequoteDepot * 100).toFixed(2)}%<br>
+             • Realer Drawdown (seit Peak): ${(details.realerDepotDrawdown * -100).toFixed(1)}%<br>
+             • Grund für Anpassung: <strong>${results.spending.kuerzungQuelle}</strong>
+            `;
+            outputs.entnahmeBreakdown.style.display = 'block';
+        } else {
+            outputs.entnahmeBreakdown.style.display = 'none';
+        }
+        
+        [...outputs.handlungsanweisung.children].filter(n => n.id !== 'copyAction').forEach(n => n.remove());
+        const handlungContent = document.createElement('div');
+        handlungContent.id = 'handlungContent';
+        handlungContent.innerHTML = results.handlungstext || '';
+        outputs.handlungsanweisung.appendChild(handlungContent);
+        outputs.handlungsanweisung.className = '';
+        outputs.handlungsanweisung.classList.add(results.anweisungKlasse || 'anweisung-grau');
+
+        const pct = isFinite(results.liquiditaetProzentNachher) ? results.liquiditaetProzentNachher : 0;
+        const bar = outputs.liquiditaetBalken; 
+        bar.className = 'progress-bar'; 
+        bar.style.width = Math.min(100, pct) + '%'; 
+        bar.classList.add(pct >= 100 ? 'bar-ok' : pct >= 70 ? 'bar-warn' : 'bar-bad');
+        if (outputs.balkenContainer) outputs.balkenContainer.setAttribute('aria-valuenow', pct.toFixed(0));
+    }
+    
+    function renderDiagnosis(diagnosis) {
+        state.diagnosisData = diagnosis;
+        const { chips, decisionTree, guardrails, keyParams } = dom.diagnosis;
+        const {entnahmequoteDepot, realerDepotDrawdown, runwayMonths} = diagnosis.keyParams;
+        const quoteStatus = entnahmequoteDepot > 0.055 ? 'danger' : entnahmequoteDepot > 0.045 ? 'warn' : 'ok';
+        const ddStatus = realerDepotDrawdown > 0.25 ? 'danger' : realerDepotDrawdown > 0.15 ? 'warn' : 'ok';
+        const runwayStatus = runwayMonths > 36 ? 'ok' : runwayMonths >= 24 ? 'warn' : 'danger';
+
+        chips.innerHTML = `
+            <span class="diag-chip status-info"><span class="label">Regime</span>${diagnosis.general.marketSzenario}</span>
+            <span class="diag-chip ${diagnosis.general.alarmActive ? 'status-danger' : 'status-ok'}"><span class="label">Alarm</span>${diagnosis.general.alarmActive ? 'AKTIV' : 'Inaktiv'}</span>
+            <span class="diag-chip status-${quoteStatus}" title="Entnahmequote = Jährliche Entnahme / Depotwert"><span class="label">Quote</span>${(entnahmequoteDepot * 100).toFixed(1)}%</span>
+            <span class="diag-chip status-${ddStatus}" title="Realer Drawdown des Gesamtvermögens seit dem inflationsbereinigten Höchststand"><span class="label">Drawdown</span>${(realerDepotDrawdown * -100).toFixed(1)}%</span>
+            <span class="diag-chip status-${runwayStatus}" title="Reichweite der Liquidität bei aktueller monatlicher Entnahme"><span class="label">Runway</span>${runwayMonths.toFixed(0)} Mon.</span>
+        `;
+
+        decisionTree.innerHTML = diagnosis.decisionTree.map(item => `
+            <li class="${item.status} severity-${item.severity} ${item.status === 'inactive' ? 'decision-inactive' : ''}">
+                ${item.step}
+                <span class="impact">${item.impact}</span>
+            </li>
+        `).join('');
+
+        guardrails.innerHTML = diagnosis.guardrails.map(g => `
+            <div class="guardrail-card status-${g.status} ${g.status === 'ok' ? 'guardrail-ok' : ''}">
+                <strong>${g.name}</strong>
+                <div class="value">${g.value}</div>
+                <div class="threshold">Schwelle: ${g.threshold}</div>
+            </div>
+        `).join('');
+        
+        const cumPct = (diagnosis.keyParams.cumulativeInflationFactor - 1) * 100;
+        const peakReal = diagnosis.keyParams.peakRealVermoegen;
+        const currReal = diagnosis.keyParams.currentRealVermoegen;
+        
+        keyParams.innerHTML = `
+            Peak (real): <code>${formatCurrency(peakReal)}</code><br>
+            Aktuell (real): <code>${formatCurrency(currReal)}</code><br>
+            Kumulierte Inflation: <code>+${cumPct.toFixed(1)}%</code><br>
+            Runway (Monate): <code>${diagnosis.keyParams.runwayMonths.toFixed(0)}</code>
+        `;
+    }
+
+    function formatDiagnosisPayload(rawDiagnosis) {
+        const formatted = { ...rawDiagnosis };
+
+        formatted.guardrails = rawDiagnosis.guardrails.map(g => {
+            let status = 'ok';
+            let isExceeded = false;
+            if (g.rule === 'max') isExceeded = g.value > g.threshold;
+            else if (g.rule === 'min') isExceeded = g.value < g.threshold;
+            
+            if (isExceeded) status = 'danger';
+            else if (g.rule === 'max' && g.value > g.threshold * 0.90) status = 'warn';
+            else if (g.rule === 'min' && g.value < g.threshold * 1.10) status = 'warn';
+
+            const formatVal = (val, type, withSign = false) => {
+                let sign = (withSign && val > 0) ? '-' : '';
+                if (type === 'percent') return `${sign}${(val * 100).toFixed(1)}%`;
+                if (type === 'months') return `${val.toFixed(0)} Mon.`;
+                return val;
+            };
+
+            return {
+                name: g.name,
+                value: formatVal(g.value, g.type, g.name.includes("Drawdown")),
+                threshold: (g.rule === 'max' ? '< ' : '> ') + formatVal(g.threshold, g.type),
+                status
+            };
+        });
+        return formatted;
+    }
+
+    function generateDiagnosisText(diagnosis) {
+        if (!diagnosis) return "Keine Diagnose-Daten verfügbar.";
+        let text = `===== KI-Diagnose für Ruhestand-Balancing =====\n`;
+        text += `App-Version: ${APP_VERSION}, Engine-Version: ${ENGINE_VERSION}\n`;
+        text += `Zeitstempel: ${new Date(state.lastUpdateTimestamp).toLocaleString('de-DE')}\n\n`;
+
+        text += `--- Status-Übersicht ---\n`;
+        text += `Marktregime: ${diagnosis.general.marketSzenario}\n`;
+        text += `Alarm-Modus: ${diagnosis.general.alarmActive ? 'AKTIV' : 'Inaktiv'}\n`;
+        text += `Entnahmequote: ${(diagnosis.keyParams.entnahmequoteDepot * 100).toFixed(2)}%\n`;
+        text += `Realer Drawdown: ${(diagnosis.keyParams.realerDepotDrawdown * -100).toFixed(1)}%\n`;
+        text += `Runway: ${diagnosis.keyParams.runwayMonths.toFixed(0)} Monate\n\n`;
+        
+        text += `--- Entscheidungsbaum (Warum?) ---\n`;
+        diagnosis.decisionTree.forEach(item => {
+            if (dom.diagnosis.filterToggle.checked && item.status === 'inactive') return;
+            text += `[${item.status === 'active' ? '⚡' : '✓'}] ${item.step}\n   ↳ ${item.impact}\n`;
+        });
+        
+        text += `\n--- Guardrails ---\n`;
+        diagnosis.guardrails.forEach(g => {
+            if (dom.diagnosis.filterToggle.checked && g.status === 'ok') return;
+            text += `${g.name}: ${g.value} (Schwelle: ${g.threshold}) -> Status: ${g.status.toUpperCase()}\n`;
+        });
+
+        text += `\n--- Schlüsselparameter ---\n`;
+        const peakReal = diagnosis.keyParams.peakRealVermoegen;
+        const currReal = diagnosis.keyParams.currentRealVermoegen;
+        text += `Peak (real): ${formatCurrency(peakReal)}\n`;
+        text += `Aktuell (real): ${formatCurrency(currReal)}\n`;
+        const cumPct = (diagnosis.keyParams.cumulativeInflationFactor - 1) * 100;
+        text += `Kumulierte Inflation: +${cumPct.toFixed(1)}%\n`;
+        
+        text += `\n===== Ende der Diagnose =====`;
+        return text;
+    }
+
+    function applyAnnualInflation() {
+        const lsData = getFromLS();
+        if (!lsData.values || !lsData.values.lastState) {
+            console.warn("Anwendung der Inflation nicht möglich, kein 'lastState' gefunden.");
+            return false;
+        }
+
+        const currentAge = parseInt(document.getElementById('aktuellesAlter').value, 10);
+        const lastAppliedAge = lsData.values.lastState.lastInflationAppliedAtAge || 0;
+
+        if (currentAge > lastAppliedAge) {
+            const infl = readInput().inflation;
+            const fac = Math.max(0, infl) / 100;
+            const oldFactor = lsData.values.lastState.cumulativeInflationFactor || 1;
+            lsData.values.lastState.cumulativeInflationFactor = oldFactor * (1 + fac);
+            lsData.values.lastState.lastInflationAppliedAtAge = currentAge;
+            saveToLS(lsData);
+            toast(`Kumulierte Inflation für Alter ${currentAge} fortgeschrieben.`);
+            return true;
+        } else if (currentAge <= lastAppliedAge) {
+            toast(`Inflation für Alter ${currentAge} wurde bereits angewendet.`, false);
+        }
+        return false;
+    }
+
+    function showError(message, isCritical = true) {
+        dom.errorContainer.textContent = message;
+        if(isCritical) dom.errorContainer.classList.add('error-warn');
+        else dom.errorContainer.classList.remove('error-warn');
+    }
+
+    function update() {
+        try {
+            dom.errorContainer.textContent = "";
+            dom.errorContainer.classList.remove('error-warn');
+            const inputData = readInput();
+            const results = calculateModel(inputData);
+            render(results);
+            if (results.diagnosis) {
+                renderDiagnosis(results.diagnosis);
+            }
+            state.lastUpdateTimestamp = Date.now();
+            return results;
+        } catch (error) {
+            console.error("Update-Fehler:", error);
+            showError("Fehler: " + (error?.message || error));
+            return null;
+        }
+    }
+
+    function debouncedUpdate() { clearTimeout(state.debounceTimer); state.debounceTimer = setTimeout(() => { const results = update(); if(results) { saveValues(results); } }, 250); }
+    
+    function saveValues(results) {
+        let lsData = getFromLS();
+        const valuesToSave = {};
+        Object.keys(state.inputs).forEach(key => {
+            const el = state.inputs[key];
+            if(el) {
+                valuesToSave[key] = el.type === 'checkbox' ? el.checked : el.value;
+            }
+        });
+        if (results.newState) lsData.values = { ...(lsData.values || {}), lastState: results.newState };
+        saveToLS({ ...lsData, values: { ...lsData.values, ...valuesToSave } });
+    }
+    
+    function loadValues() {
+        const lsData = getFromLS(); const values = lsData.values || {};
+        Object.keys(state.inputs).forEach(key => {
+            const el = document.getElementById(key);
+            if (el && key in values) {
+                if(el.type === 'checkbox') el.checked = values[key];
+                else if (el.classList.contains('currency')) el.value = formatCurrencyInput(parseCurrencyInput(values[key]));
+                else el.value = values[key];
+            }
+        });
+    }
+
+    function selfCheckEngine() {
+        if (typeof Ruhestandsmodell_v30 === 'undefined') return;
+        const fnBody = Object.values(Ruhestandsmodell_v30).reduce((s, fn) => s + (typeof fn === 'function' ? fn.toString() : ''), '');
+        let hash = 0;
+        for (let i = 0; i < fnBody.length; i++) {
+            const char = fnBody.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0; 
+        }
+        const currentHash = String(Math.abs(hash));
+        const mismatch = Ruhestandsmodell_v30.VERSION !== ENGINE_VERSION || currentHash !== ENGINE_HASH;
+        const footer = document.getElementById('engine-mismatch-footer');
+        if (mismatch && footer) {
+            footer.textContent = `WARNUNG: Engine-Mismatch! Erwartet: ${ENGINE_VERSION} (${ENGINE_HASH}), gefunden: ${Ruhestandsmodell_v30.VERSION} (${currentHash})`;
+            footer.style.display = 'block';
+        }
+    }
+
+    async function init() {
+        selfCheckEngine();
+        const allInputs = document.querySelectorAll('input, select');
+        allInputs.forEach(input => { if(input.id) state.inputs[input.id] = input; });
+        
+        if (document.getElementById('print-footer')) document.getElementById('print-footer').innerHTML = `<div>Version: ${APP_VERSION} (Engine: ${ENGINE_VERSION})</div>`;
+        
+        dom.tabButtons.addEventListener('click', (e) => {
+            const clickedButton = e.target.closest('.tab-btn');
+            if (!clickedButton) return;
+            dom.tabButtons.querySelector('.active').classList.remove('active');
+            clickedButton.classList.add('active');
+            dom.tabPanels.forEach(panel => panel.classList.remove('active'));
+            document.getElementById('tab-' + clickedButton.dataset.tab).classList.add('active');
+        });
+
+        const toggleDrawer = (isOpen) => {
+            dom.diagnosis.drawer.classList.toggle('is-open', isOpen);
+            dom.diagnosis.overlay.classList.toggle('is-open', isOpen);
+        };
+        dom.diagnosis.openBtn.addEventListener('click', () => toggleDrawer(true));
+        dom.diagnosis.closeBtn.addEventListener('click', () => toggleDrawer(false));
+        dom.diagnosis.overlay.addEventListener('click', () => toggleDrawer(false));
+        dom.diagnosis.copyBtn.addEventListener('click', () => {
+            const textToCopy = generateDiagnosisText(state.diagnosisData);
+            navigator.clipboard.writeText(textToCopy).then(() => toast('Diagnose kopiert!'));
+        });
+        dom.diagnosis.filterToggle.addEventListener('change', (e) => {
+            dom.diagnosis.content.classList.toggle('filter-inactive', e.target.checked);
+        });
+        
+        dom.jahresabschlussBtn.addEventListener('click', async () => {
+            if (!confirm("Möchten Sie einen Jahresabschluss-Snapshot erstellen? Die Inflation für das aktuelle Alter wird dabei fortgeschrieben.")) return;
+            try {
+                applyAnnualInflation();
+                debouncedUpdate();
+                const currentData = getFromLS();
+                if (Object.keys(currentData).length === 0) throw new Error("Keine Daten zum Sichern vorhanden.");
+                const timestamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+                
+                if (state.snapshotHandle) {
+                    const fileName = `Snapshot_${timestamp}.json`;
+                    const fileHandle = await state.snapshotHandle.getFileHandle(fileName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(JSON.stringify(currentData, null, 2));
+                    await writable.close();
+                } else {
+                    const key = SNAPSHOT_PREFIX + new Date().toISOString();
+                    localStorage.setItem(key, JSON.stringify(currentData));
+                }
+                toast('Jahresabschluss-Snapshot erfolgreich erstellt.');
+                renderSnapshots();
+            } catch (err) { toast(`Snapshot konnte nicht erstellt werden: ${err.message}`, false); }
+        });
+        
+        if ('showDirectoryPicker' in window) {
+            dom.connectFolderBtn.addEventListener('click', connectFolder);
+            try {
+                const handle = await idbHelper.get('snapshotDirHandle');
+                if (handle && (await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+                    state.snapshotHandle = handle;
+                    dom.snapshotStatus.textContent = `Verbunden mit: ${handle.name}`;
+                }
+            } catch(e) { console.warn("Konnte Snapshot-Handle nicht laden."); }
+        } else {
+            dom.connectFolderBtn.style.display = 'none';
+            dom.snapshotStatus.textContent = "Speicherort: Browser (File System API nicht unterstützt)";
+        }
+
+        dom.outputs.snapshotList.addEventListener('click', handleSnapshotActions);
+
+        function applyGoldVisibility() {
+            const isActive = document.getElementById('goldAktiv').checked;
+            document.getElementById('goldWertGroup').style.display = isActive ? '' : 'none';
+            if (!isActive) document.getElementById('goldWert').value = formatCurrencyInput(0);
+        }
+
+        document.querySelectorAll('.goldAktiv').forEach(box => {
+            box.addEventListener('change', (e) => {
+                document.querySelectorAll('.goldAktiv').forEach(b => b.checked = e.target.checked);
+                dom.goldPanel.style.display = e.target.checked ? 'block' : 'none';
+                applyGoldVisibility();
+                debouncedUpdate();
+            });
+        });
+        
+        document.getElementById('renteAktiv').addEventListener('change', () => { 
+            const inp = document.getElementById('renteMonatlich');
+            const isJa = document.getElementById('renteAktiv').value === 'ja';
+            inp.disabled = !isJa;
+            if(!isJa) inp.value = formatCurrencyInput(0);
+            debouncedUpdate();
+        });
+        
+        loadValues();
+        updateDepotMetaUI();
+        renderSnapshots();
+        dom.goldPanel.style.display = document.getElementById('goldAktiv').checked ? 'block' : 'none';
+        applyGoldVisibility();
+        
+        Object.values(state.inputs).forEach(el => el && el.addEventListener('input', debouncedUpdate));
+        document.querySelectorAll('input.currency').forEach(el => { el.addEventListener('blur', () => el.value = formatCurrencyInput(parseCurrencyInput(el.value))); });
+        
+        dom.themeToggle.addEventListener('click', () => { const modes = ['light', 'dark', 'system']; const current = localStorage.getItem('theme') || 'system'; const next = modes[(modes.indexOf(current) + 1) % modes.length]; localStorage.setItem('theme', next); applyTheme(next); });
+        function applyTheme(mode) { const effectiveTheme = (mode === 'system') ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode; document.documentElement.setAttribute('data-theme', effectiveTheme); dom.themeToggle.innerHTML = (mode === 'dark') ? '☀️' : (mode === 'light') ? '🌙' : '🖥️'; } applyTheme(localStorage.getItem('theme') || 'system');
+        
+        dom.resetBtn.addEventListener('click', () => { if(confirm("Alle gespeicherten Werte (inkl. Guardrail-Daten) zurücksetzen?")) {localStorage.removeItem(LS_KEY); localStorage.removeItem(MIGRATION_FLAG); location.reload();} });
+        
+        dom.copyAction.addEventListener('click', () => navigator.clipboard.writeText(document.getElementById('handlungContent').innerText.trim()).then(() => toast('Kopiert.')));
+        
+        ['depotwertAlt', 'depotwertNeu', 'goldWert'].forEach(id => { document.getElementById(id).addEventListener('input', () => { const data = getFromLS(); data.values = {...(data.values||{}), depotLastUpdate: Date.now()}; delete data.values.depotConfirmedAt; saveToLS(data); updateDepotMetaUI(); }); });
+        
+        dom.depotConfirmBtn.addEventListener('click', () => { const data = getFromLS(); data.values = {...(data.values||{}), depotConfirmedAt: Date.now()}; saveToLS(data); update(); });
+        
+        dom.btnBedarfAnpassen.addEventListener('click', () => {
+            const infl = readInput().inflation;
+            ['floorBedarf', 'flexBedarf'].forEach(id => { const el = document.getElementById(id); el.value = formatCurrencyInput(parseCurrencyInput(el.value) * (1 + infl / 100)); });
+            toast(`Bedarfe mit ${infl.toFixed(1)}% Inflation fortgeschrieben.`);
+            debouncedUpdate();
+        });
+        
+        function snapshotMarkt() { return { endeVJ: document.getElementById('endeVJ').value, endeVJ_1: document.getElementById('endeVJ_1').value, endeVJ_2: document.getElementById('endeVJ_2').value, endeVJ_3: document.getElementById('endeVJ_3').value, ath: document.getElementById('ath').value, jahreSeitAth: document.getElementById('jahreSeitAth').value }; }
+        function restoreMarkt(snap) { Object.entries(snap).forEach(([k,v]) => { const el = document.getElementById(k); if(el) el.value = v; }); }
+        
+        dom.btnNachruecken.addEventListener('click', () => {
+            state.lastMarktData = snapshotMarkt();
+            document.getElementById('endeVJ_3').value = document.getElementById('endeVJ_2').value;
+            document.getElementById('endeVJ_2').value = document.getElementById('endeVJ_1').value;
+            document.getElementById('endeVJ_1').value = document.getElementById('endeVJ').value;
+            const ath = parseFloat(document.getElementById('ath').value) || 0;
+            const endevj = parseFloat(document.getElementById('endeVJ').value) || 0;
+            const j = parseFloat(document.getElementById('jahreSeitAth').value) || 0;
+            document.getElementById('jahreSeitAth').value = (endevj >= ath) ? 0 : (j + 1);
+            
+            applyAnnualInflation();
+            debouncedUpdate();
+            dom.btnUndoNachruecken.style.display = 'inline-flex';
+        });
+        dom.btnUndoNachruecken.addEventListener('click', () => { if (state.lastMarktData) restoreMarkt(state.lastMarktData); dom.btnUndoNachruecken.style.display = 'none'; debouncedUpdate(); });
+        dom.btnCsvImport.addEventListener('click', () => document.getElementById('csvFileInput').click());
+        document.getElementById('csvFileInput').addEventListener('change', async (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            try {
+                const text = await file.text(); const line = text.split(/\r?\n/).find(l => l && !l.trim().startsWith('#'));
+                const vals = line?.split(/[;,]/).map(s => s.trim());
+                if (!vals || vals.length < 6) throw new Error('CSV-Format nicht erkannt.');
+                ['endeVJ', 'endeVJ_1', 'endeVJ_2', 'endeVJ_3', 'ath', 'jahreSeitAth'].forEach((id, i) => document.getElementById(id).value = vals[i]);
+                debouncedUpdate(); toast('Marktdaten importiert.');
+            } catch(err) { toast('CSV-Import fehlgeschlagen.', false); } finally { e.target.value = ''; }
+        });
+        dom.exportBtn.addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify({ app: 'Ruhestand-Balancing', version: APP_VERSION, payload: getFromLS() }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `balancing-export-${new Date().toISOString().slice(0,10)}.json`;
+            a.click(); URL.revokeObjectURL(a.href);
+            toast('Export erstellt.');
+        });
+        dom.importBtn.addEventListener('click', () => document.getElementById('importFile').click());
+        document.getElementById('importFile').addEventListener('change', async (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            try {
+                const json = JSON.parse(await file.text());
+                localStorage.setItem(LS_KEY, JSON.stringify(json.payload ?? json));
+                runMigrations(); 
+                loadValues(); updateDepotMetaUI(); update(); toast('Import erfolgreich.');
+            } catch(err) { toast('Import fehlgeschlagen.', false); } finally { e.target.value = ''; }
+        });
+
+        update();
+    }
+    
+    document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
