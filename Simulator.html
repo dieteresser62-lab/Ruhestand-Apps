@@ -16,10 +16,17 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--background-color); color: var(--text-color); margin: 0; padding: 20px;
-            display: flex; justify-content: center; align-items: flex-start; min-height: 100vh;
-        }
-        .main-layout { display: flex; flex-direction: column; gap: 25px; width: 100%; max-width: 1600px; }
+            display: flex; justify-content: center; align-items: flex-start; min-height:        .main-layout { display: flex; flex-direction: column; gap: 25px; width: 100%; max-width: 1600px; }
         .panel { background-color: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); }
+        
+        /* Tab Styles */
+        .tab-container { background-color: var(--container-bg); border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); overflow: hidden; }
+        .tab-navigation { display: flex; background-color: var(--background-color); border-bottom: 1px solid var(--border-color); }
+        .tab-button { flex: 1; padding: 15px 20px; background: none; border: none; cursor: pointer; font-size: 1.1rem; font-weight: bold; color: var(--text-color); transition: all 0.3s ease; border-bottom: 3px solid transparent; }
+        .tab-button:hover { background-color: rgba(52, 152, 219, 0.1); color: var(--secondary-color); }
+        .tab-button.active { background-color: var(--container-bg); color: var(--secondary-color); border-bottom-color: var(--secondary-color); }
+        .tab-content { display: none; padding: 25px; }
+        .tab-content.active { display: block; }gba(0, 0, 0, 0.08); }
         h1, h2 { color: var(--primary-color); text-align: center; }
         h1 { font-size: 1.8rem; margin-top: 0; margin-bottom: 25px; }
         h2 { font-size: 1.3rem; margin: 0 0 20px 0; padding-bottom: 10px; border-bottom: 2px solid var(--secondary-color); }
@@ -102,13 +109,20 @@
         .heatmap-svg .heatmap-cell-text { fill: #fff; text-anchor: middle; dominant-baseline: middle; font-size: 9px; pointer-events: none; }
         .heatmap-svg .legend-text { font-size: 10px; fill: var(--primary-color); }
         .heatmap-svg .reference-band { fill: rgba(41, 128, 185, 0.1); stroke: rgba(41, 128, 185, 0.5); stroke-width: 1px; }
-        #heatmap-summary { margin-top: 10px; display: flex; justify-content: space-around; font-size: 0.9rem; background: var(--background-color); padding: 10px; border-radius: 8px;}
-        #heatmap-summary strong { color: var(--primary-color); }
-    </style>
-</head>
-<body>
-
-    <div class="main-layout">
+        #heatmap-summary { margin-top: 10px; display: flex; justify-content: space-around; font-size: 0.9rem; background: var(--background-color); padding: 10px; border-radius:    <div class="main-layout">
+        <div class="panel">
+            <h1>Ruhestandsmodell-Simulator v30.2</h1>
+        </div>
+        
+        <div class="tab-container">
+            <div class="tab-navigation">
+                <button class="tab-button active" onclick="switchTab('input-data')">Eingabedaten</button>
+                <button class="tab-button" onclick="switchTab('monte-carlo')">Monte-Carlo</button>
+                <button class="tab-button" onclick="switchTab('backtest')">Backtest</button>
+            </div>
+            
+            <div id="input-data" class="tab-content active">
+                <fieldset>">
         <div class="panel">
             <h1>Ruhestandsmodell-Simulator v30.2</h1>
             <fieldset>
@@ -129,7 +143,8 @@
                     <div class="form-group"><label for="einstandAlt">Einstand Depot Alt (€)</label><input type="number" id="einstandAlt" value="666667"></div>
                     <div class="form-group"><label>Einstand Depot Neu (€)</label><input type="number" id="einstandNeu" placeholder="wird berechnet" disabled></div>
                  </div>
-                 <div id="displayPortfolioBreakdown" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;"></div>
+                 <div id="displayPortfolioBreakdown                <fieldset>
+                    <legend>Strategie-Parameter</legend>ng-top: 15px;"></div>
             </fieldset>
 
             <fieldset>
@@ -156,10 +171,10 @@
                         </div>
                         <div class="form-group" style="grid-column: span 2; justify-content: center;">
                             <label style="flex-direction: row; align-items: center;">
-                                <input type="checkbox" id="goldSteuerfrei" style="width: auto; margin-right: 8px;" checked> Gold-Verkäufe steuerfrei (simuliert >1J Haltefrist)
-                            </label>
-                        </div>
-                    </div>
+                                <input type="checkbox" id="goldSteuerfrei" style="width: auto; margin-right: 8px;" checked> Gold-Verkäufe steuerf                </fieldset>
+                
+                <fieldset>
+                    <legend>Entnahme-Modus</legend>               </div>
                 </div>
             </fieldset>
             
@@ -175,8 +190,10 @@
                 </div>
                 <div class="form-group" style="margin-top: 10px; justify-content: center;">
                     <label style="flex-direction: row; align-items: center;">
-                        <input type="checkbox" id="round5" style="width: auto; margin-right: 8px;">
-                        Kürzung in 5-%-Schritten runden
+                        <input type="checkb                </fieldset>
+
+                <fieldset>
+                    <legend>Allgemeine & Externe Parameter</legend>en
                     </label>
                 </div>
             </fieldset>
@@ -258,8 +275,12 @@
                             <input type="number" id="pflegeKostenDrift" value="1.5">
                         </div>
                         <div class="form-group" id="pflegeTodesrisikoContainer">
-                            <label for="pflegeTodesrisikoFaktor">Todesrisiko-Faktor bei Max-Pflege</label>
-                            <input type="number" id="pflegeTodesrisikoFaktor" value="5.0" step="0.1">
+                                </div>
+                </fieldset>
+            </div>
+            
+            <div id="monte-carlo" class="tab-content">
+                <h2>Monte-Carlo-Simulation</h2>umber" id="pflegeTodesrisikoFaktor" value="5.0" step="0.1">
                         </div>
                     </div>
                 </div>
@@ -311,7 +332,11 @@
                     <h4 style="text-align:center;">Jahresprotokoll des schlechtesten Laufs (Worst Case)</h4>
 					<div id="worst-controls" style="text-align: center; margin-bottom: 10px; font-size: 0.9rem;">
                       <label style="user-select:none; cursor:pointer;" title="Zeige vollständige Pflege-Aufschlüsselung (Anker, Cap, Deltas, Flex-Faktor).">
-                        <input type="checkbox" id="toggle-care-details" style="width:auto; vertical-align: middle; margin-right: 4px;">
+                             </div>
+            </div>
+            
+            <div id="backtest" class="tab-content">
+                <h2>Historisches Backtesting</h2>>
                         Pflege-Details anzeigen
                       </label>
                     </div>					
@@ -329,13 +354,34 @@
                     <div class="form-group"><label for="simEndJahr">Endjahr</label><input type="number" id="simEndJahr" value="2023"></div>
                 </div>
             </fieldset>
-            <button id="btButton" onclick="runBacktest()">Historische Simulation starten</button>
-             <div id="simulationResults" style="display:none; margin-top: 25px;"><h3>Ergebnis des Backtests</h3><div id="simulationSummary"></div><h4 style="text-align:center; margin-top:20px;">Jahresprotokoll</h4><div id="simulationLog">Keine Daten</div></div>
+            <button id="btButton" oncli             <div id="engine-mismatch-footer"></div>
+            </div>
+        </div>
+    </div>id="simulationResults" style="display:none; margin-top: 25px;"><h3>Ergebnis des Backtests</h3><div id="simulationSummary"></div><h4 style="text-align:center; margin-top:20px;">Jahresprotokoll</h4><div id="simulationLog">Keine Daten</div></div>
              <div id="engine-mismatch-footer"></div>
         </div>
     </div>
 
 <script src="./enginev30.js"></script>
+
+<script>
+// Tab switching functionality
+function switchTab(tabId) {
+    // Hide all tab contents
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabContents.forEach(content => content.classList.remove('active'));
+    
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => button.classList.remove('active'));
+    
+    // Show selected tab content
+    document.getElementById(tabId).classList.add('active');
+    
+    // Add active class to clicked button
+    event.target.classList.add('active');
+}
+</script>
 
 <script defer>
 "use strict";
